@@ -108,36 +108,37 @@ public struct GeoFeature : BaseShape
     public GeoFeature(ReadOnlySpan<Coordinate> c, MapFeatureData feature)
     {
         IsPolygon = feature.Type == GeometryType.Polygon;
-        var naturalKey = feature.Properties.FirstOrDefault(x => x.Key == "natural").Value;
+        var landauxiliar = feature.Properties.natural;
         Type = GeoFeatureType.Unknown;
-        if (naturalKey != null)
+        //change from comparing strings to comparing the enums mapped
+        if (landauxiliar != PropertiesSettings.Land.NONE)
         {
-            if (naturalKey == "fell" ||
-                naturalKey == "grassland" ||
-                naturalKey == "heath" ||
-                naturalKey == "moor" ||
-                naturalKey == "scrub" ||
-                naturalKey == "wetland")
+            if (landauxiliar == PropertiesSettings.Land.FELL ||
+                landauxiliar == PropertiesSettings.Land.GRASSLAND ||
+                landauxiliar == PropertiesSettings.Land.HEATH ||
+                landauxiliar == PropertiesSettings.Land.MOOR ||
+                landauxiliar == PropertiesSettings.Land.SCRUB ||
+                landauxiliar == PropertiesSettings.Land.WETLAND)
             {
                 Type = GeoFeatureType.Plain;
             }
-            else if (naturalKey == "wood" ||
-                     naturalKey == "tree_row")
+            else if (landauxiliar == PropertiesSettings.Land.WOOD || 
+                     landauxiliar == PropertiesSettings.Land.TREE_ROW)
             {
                 Type = GeoFeatureType.Forest;
             }
-            else if (naturalKey == "bare_rock" ||
-                     naturalKey == "rock" ||
-                     naturalKey == "scree")
+            else if (landauxiliar == PropertiesSettings.Land.BARE_ROCK || 
+                     landauxiliar == PropertiesSettings.Land.ROCK ||
+                     landauxiliar == PropertiesSettings.Land.SCREE)
             {
                 Type = GeoFeatureType.Mountains;
             }
-            else if (naturalKey == "beach" ||
-                     naturalKey == "sand")
+            else if (landauxiliar == PropertiesSettings.Land.BEACH ||
+                     landauxiliar == PropertiesSettings.Land.SAND)
             {
                 Type = GeoFeatureType.Desert;
             }
-            else if (naturalKey == "water")
+            else if (landauxiliar == PropertiesSettings.Land.WATER)
             {
                 Type = GeoFeatureType.Water;
             }
@@ -147,6 +148,49 @@ public struct GeoFeature : BaseShape
         for (var i = 0; i < c.Length; i++)
             ScreenCoordinates[i] = new PointF((float)MercatorProjection.lonToX(c[i].Longitude),
                 (float)MercatorProjection.latToY(c[i].Latitude));
+    }
+
+    public static bool isNatural(MapFeatureData feature) {
+        return feature.Type == GeometryType.Polygon && feature.Properties.natural != PropertiesSettings.Land.NONE;  
+    }
+
+    public static bool isForest(MapFeatureData feature) {
+        return feature.Properties.boundary == PropertiesSettings.Boundary.FOREST;
+    }
+
+    public static bool isLanduseForestOrOrchad(MapFeatureData feature) {
+        return feature.Properties.landuse == PropertiesSettings.Landuse.FOREST || feature.Properties.landuse == PropertiesSettings.Landuse.ORCHARD;
+    }
+
+    public static bool isLanduseResidential(MapFeatureData feature) {
+        PropertiesSettings.Landuse landuse = feature.Properties.landuse;
+        return landuse == PropertiesSettings.Landuse.RESIDENTIAL || landuse == PropertiesSettings.Landuse.CEMETERY || landuse == PropertiesSettings.Landuse.INDUSTRIAL ||
+          landuse == PropertiesSettings.Landuse.COMMERCIAL ||  landuse == PropertiesSettings.Landuse.SQUARE || landuse == PropertiesSettings.Landuse.CONSTRUCTION ||
+          landuse == PropertiesSettings.Landuse.MILITARY || landuse == PropertiesSettings.Landuse.QUARRY || landuse == PropertiesSettings.Landuse.BROWNFIELD;
+    }
+
+    public static bool isLandusePlain(MapFeatureData feature) {
+        PropertiesSettings.Landuse landuse = feature.Properties.landuse;
+        return landuse == PropertiesSettings.Landuse.FARM || landuse == PropertiesSettings.Landuse.MEADOW || landuse == PropertiesSettings.Landuse.GRASS ||
+          landuse == PropertiesSettings.Landuse.GREENFIELD || landuse == PropertiesSettings.Landuse.RECREATION_GROUND || landuse == PropertiesSettings.Landuse.WINTER_SPORTS ||
+          landuse == PropertiesSettings.Landuse.ALLOTMENTS;
+    }
+
+    public static bool isWater(MapFeatureData feature) {
+        PropertiesSettings.Landuse landuse = feature.Properties.landuse;
+        return landuse == PropertiesSettings.Landuse.RESERVOIR || landuse == PropertiesSettings.Landuse.BASIN;
+    }
+
+    public static bool isBuilding(MapFeatureData feature) {
+      return feature.Properties.building != PropertiesSettings.Building.NONE && feature.Type == GeometryType.Polygon;
+    }
+
+    public static bool isLeisure(MapFeatureData feature) {
+      return feature.Properties.leisure != PropertiesSettings.Leisure.NONE && feature.Type == GeometryType.Polygon;
+    }
+
+    public static bool isAmenity(MapFeatureData feature) {
+      return feature.Properties.amenity != PropertiesSettings.Amenity.NONE && feature.Type == GeometryType.Polygon;
     }
 }
 
@@ -175,6 +219,10 @@ public struct Railway : BaseShape
             ScreenCoordinates[i] = new PointF((float)MercatorProjection.lonToX(c[i].Longitude),
                 (float)MercatorProjection.latToY(c[i].Latitude));
     }
+
+    public static bool isRailway(MapFeatureData feature) {
+      return feature.Properties.railway != PropertiesSettings.Railway.NONE;
+    }
 }
 
 public struct PopulatedPlace : BaseShape
@@ -202,7 +250,7 @@ public struct PopulatedPlace : BaseShape
         for (var i = 0; i < c.Length; i++)
             ScreenCoordinates[i] = new PointF((float)MercatorProjection.lonToX(c[i].Longitude),
                 (float)MercatorProjection.latToY(c[i].Latitude));
-        var name = feature.Properties.FirstOrDefault(x => x.Key == "name").Value;
+        var name = feature.Properties.name;
 
         if (feature.Label.IsEmpty)
         {
@@ -216,23 +264,15 @@ public struct PopulatedPlace : BaseShape
         }
     }
 
-    public static bool ShouldBePopulatedPlace(MapFeatureData feature)
+    public static bool isPopulatedPlace(MapFeatureData feature)
     {
         // https://wiki.openstreetmap.org/wiki/Key:place
         if (feature.Type != GeometryType.Point)
         {
             return false;
         }
-        foreach (var entry in feature.Properties)
-            if (entry.Key.StartsWith("place"))
-            {
-                if (entry.Value.StartsWith("city") || entry.Value.StartsWith("town") ||
-                    entry.Value.StartsWith("locality") || entry.Value.StartsWith("hamlet"))
-                {
-                    return true;
-                }
-            }
-        return false;
+        PropertiesSettings.Setting place = feature.Properties.place;
+        return place == PropertiesSettings.Setting.CITY || place == PropertiesSettings.Setting.TOWN || place == PropertiesSettings.Setting.LOCALITY || place == PropertiesSettings.Setting.HAMLET;
     }
 }
 
@@ -257,28 +297,9 @@ public struct Border : BaseShape
                 (float)MercatorProjection.latToY(c[i].Latitude));
     }
 
-    public static bool ShouldBeBorder(MapFeatureData feature)
+    public static bool isBorder(MapFeatureData feature)
     {
-        // https://wiki.openstreetmap.org/wiki/Key:admin_level
-        var foundBoundary = false;
-        var foundLevel = false;
-        foreach (var entry in feature.Properties)
-        {
-            if (entry.Key.StartsWith("boundary") && entry.Value.StartsWith("administrative"))
-            {
-                foundBoundary = true;
-            }
-            if (entry.Key.StartsWith("admin_level") && entry.Value == "2")
-            {
-                foundLevel = true;
-            }
-            if (foundBoundary && foundLevel)
-            {
-                break;
-            }
-        }
-
-        return foundBoundary && foundLevel;
+        return feature.Properties.boundary == PropertiesSettings.Boundary.ADMINISTRATIVE && feature.Properties.adminLevel == PropertiesSettings.AdministrationLevel.LEVEL_2;
     }
 }
 
@@ -299,6 +320,11 @@ public struct Waterway : BaseShape
         {
             context.FillPolygon(Color.LightBlue, ScreenCoordinates);
         }
+    }
+    
+    public static bool isWaterway(MapFeatureData feature)
+    {
+      return feature.Properties.water != PropertiesSettings.Water.NONE && feature.Type != GeometryType.Point;
     }
 
     public Waterway(ReadOnlySpan<Coordinate> c, bool isPolygon = false)
@@ -336,6 +362,12 @@ public struct Road : BaseShape
             ScreenCoordinates[i] = new PointF((float)MercatorProjection.lonToX(c[i].Longitude),
                 (float)MercatorProjection.latToY(c[i].Latitude));
     }
+
+    public static bool isRoad(MapFeatureData feature)
+    {
+        return feature.Properties.highway != PropertiesSettings.Highway.SOMETHING && feature.Properties.highway != PropertiesSettings.Highway.NONE;
+    }
+    
 }
 
 public interface BaseShape
